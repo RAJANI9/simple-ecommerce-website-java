@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+    parameters {
+        string(name: 'BRANCH_NAME', defaultValue: 'fe/dev', description: 'Specify the branch name to deploy')
+    }
+    stages {
+        stage("GIT checkout") {
+            steps {
+                script {
+                    // Checkout the specified branch
+                    def branchName = params.BRANCH_NAME
+                    checkout([$class: 'GitSCM', branches: [[name: branchName]], userRemoteConfigs: [[url: 'https://github.com/RAJANI9/boxfuse-sample-java-war-hello.git']]])
+                }
+            }
+        }
+        stage("Build") {
+            steps {
+                sh "mvn clean package"
+                sh "mv target/hello-1.0.war target/boxfuse-sample-java-war-hello.war"
+            }
+        }
+        stage("Deploy to Dev") {
+            when {
+                expression { params.BRANCH_NAME == 'fe/dev' }
+            }
+            steps {
+                deployToTomcat('13.127.204.29', 'tomcat', 'tomcat', 'http://13.127.204.29:8080/manager/text', '/boxfuse-sample-java-war-hello', 'Dev')
+            }
+        }
+        stage("Deploy to QA") {
+            when {
+                expression { params.BRANCH_NAME == 'fe/qa' }
+            }
+            steps {
+                deployToTomcat('13.200.254.70', 'tomcat', 'tomcat', 'http://13.200.254.70:8080/manager/text', '/boxfuse-sample-java-war-hello', 'QA')
+            }
+        }
+        stage("Deploy to Prod") {
+            when {
+                expression { params.BRANCH_NAME == 'master' }
+            }
+            steps {
+                input(message: "Do you want to proceed to PROD?", ok: "Proceed") // Approval step
+
+                // Deploy to PROD server after approval
+                deployToTomcat('35.154.206.250', 'tomcat', 'tomcat', 'http://35.154.206.250:8080/manager/text', '/boxfuse-sample-java-war-hello', 'Prod')
+                
+                // Send Slack notification
+                slackSend(channel: '8pm-devops-batch', message: "Deployment to PROD has been approved by manager.")
+            }
+        }
+    }
+}
+
+def deployToTomcat(tomcatIP, username, password, tomcatURL, contextPath, environment) {
+    def warFileName = 'target/boxfuse-sample-java-war-hello.war'
+
+    // Deploy the WAR file using curl
+    sh """
+        curl -v -u ${username}:${password} --upload-file ${warFileName} ${tomcatURL}/deploy?path=${contextPath}&update=true
+    """
+    echo "Deployment to ${environment} server completed."
+}

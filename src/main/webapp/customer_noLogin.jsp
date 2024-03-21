@@ -3,7 +3,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 
 
-<title>Sign in</title>
+<title>Sign in to this page</title>
 <style type="text/css">
 body {
 	background-color: #ba0000;
